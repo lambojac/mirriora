@@ -1,0 +1,28 @@
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "target": "ES2016",
+    "esModuleInterop": true,
+    "moduleResolution": "node",
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "noImplicitAny": true,
+    "strict": true,
+    "strictPropertyInitialization": false,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "removeComments": true,
+    "sourceMap": true,
+    "rootDir": ".",
+    "outDir": "../dist",
+    "baseUrl": ".",
+    "types": ["node"],
+    "typeRoots": ["../node_modules/@types", "./types"],
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "lib": ["es2015"],
+  "include": ["**/*.ts"],
+  "exclude": ["../node_modules"]
+}
