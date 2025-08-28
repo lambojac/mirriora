@@ -1,72 +1,152 @@
+// auth.service.ts
 import bcrypt from "bcryptjs";
 import { Response } from "express";
-import User from "../../modules/schemas/user";
+import { supabase } from "../../config/dbConn";
 import genToken from "../../modules/utils/tokenGen";
-import { changePasswordEmail,   sendVerificationEmail } from "../../modules/utils/emailService";
-import { RegisterBody, LoginBody } from "../../modules/types/auth";
+import { sendVerificationEmail } from "../../modules/utils/emailService";
+import { RegisterBody, LoginBody, IUser } from "../../modules/types/auth";
 import { generateOTP, sendOTP } from "../../modules/utils/otpMailer";
+import { isEmail, isValidPhoneNumber } from "../../helpers/validation";
 
-// register
 export const register = async (body: RegisterBody) => {
-  const { fullName, phoneNumber, email, password} = body;
+  const { fullName, phoneNumber, email, password } = body;
 
-  if (!fullName  || !password) {
+  if (!fullName || !password) {
     return { status: 400, data: { message: "Please provide all required fields." } };
   }
 
-  
-
-  const existingUser = await User.findOne({ email });
-  if (existingUser) {
-    return { status: 400, data: { message: "User with this email already exists." } };
+  if (!email && !phoneNumber) {
+    return { status: 400, data: { message: "Please provide either email or phone number." } };
   }
-  const existingUserName=await User.findOne({fullName})
-  if(existingUserName){
-    return { status: 400, data: { message: "User with this username already exists." } };
+
+  if (email && !isEmail(email)) {
+    return { status: 400, data: { message: "Please provide a valid email address." } };
+  }
+
+  if (phoneNumber && !isValidPhoneNumber(phoneNumber)) {
+    return { status: 400, data: { message: "Please provide a valid phone number." } };
+  }
+
+  // Check for existing user
+  let existingUserQuery = `
+    SELECT id, email, phone_number 
+    FROM users 
+    WHERE 
+  `;
+
+  const conditions = [];
+  const params = [];
+
+  if (email) {
+    conditions.push('email = $' + (params.length + 1));
+    params.push(email);
+  }
+
+  if (phoneNumber) {
+    conditions.push('phone_number = $' + (params.length + 1));
+    params.push(phoneNumber);
+  }
+
+  existingUserQuery += conditions.join(' OR ');
+
+  const { data: existingUser } = await supabase.rpc('execute_sql', {
+    query: existingUserQuery,
+    params
+  });
+
+  if (existingUser && existingUser.length > 0) {
+    const user = existingUser[0];
+    if (user.email === email) {
+      return { status: 400, data: { message: "User with this email already exists." } };
+    }
+    if (user.phone_number === phoneNumber) {
+      return { status: 400, data: { message: "User with this phone number already exists." } };
+    }
   }
 
   const hashedPassword = await bcrypt.hash(password, 10);
   const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
   const verificationExpires = new Date(Date.now() + 10 * 60 * 1000);
 
-  const user = await User.create({
-    email,
-    password: hashedPassword,
-    verificationCode,
-    verificationExpires,
-    isVerified: false,
-    
-  });
+  // Insert new user
+  const { data: newUser, error } = await supabase
+    .from('users')
+    .insert([{
+      full_name: fullName,
+      email: email || null,
+      phone_number: phoneNumber || null,
+      password: hashedPassword,
+      verification_code: verificationCode,
+      verification_expires: verificationExpires.toISOString(),
+      is_verified: false,
+    }])
+    .select('id, full_name, email, phone_number, is_verified')
+    .single();
 
-  await sendVerificationEmail(email, verificationCode);
+  if (error) {
+    console.error('Error creating user:', error);
+    return { status: 500, data: { message: "Error creating user account." } };
+  }
 
-   return {
+  // Send verification
+  if (email) {
+    await sendVerificationEmail(email, verificationCode);
+  } else if (phoneNumber) {
+    console.log(`SMS verification code for ${phoneNumber}: ${verificationCode}`);
+  }
+
+  return {
     status: 201,
     data: {
-      message: "Registration successful. Please verify your email.",
-      userId: user._id,
+      message: `Registration successful. Please verify your ${email ? 'email' : 'phone number'}.`,
+      userId: newUser.id,
       user: {
-        id: user._id,
-       fullName: user.fullName,
-        email: user.email,
-        isVerified: user.isVerified
+        id: newUser.id,
+        fullName: newUser.full_name,
+        email: newUser.email,
+        phoneNumber: newUser.phone_number,
+        isVerified: newUser.is_verified
       }
     },
   };
 };
+
 // login
 export const login = async (body: LoginBody, res: Response) => {
-  const { email, password, phoneNumber } = body;
+  const { identifier, password } = body;
 
-  const user = await User.findOne({ email }).select("+password");
-  if (!user) return { status: 400, data: { message: "User not found." } };
-  if (!user.isVerified) return { status: 400, data: { message: "Please verify your email." } };
+  if (!identifier || !password) {
+    return { status: 400, data: { message: "Please provide identifier and password." } };
+  }
+
+  // Find user by email or phone
+  const column = isEmail(identifier) ? 'email' : 'phone_number';
+  const { data: users, error } = await supabase
+    .from('users')
+    .select('id, full_name, email, phone_number, password, is_verified, is_deactivated')
+    .eq(column, identifier)
+    .limit(1);
+
+  if (error || !users || users.length === 0) {
+    return { status: 400, data: { message: "User not found." } };
+  }
+
+  const user = users[0];
+
+  if (!user.is_verified) {
+    return { status: 400, data: { message: "Please verify your account first." } };
+  }
+
+  if (user.is_deactivated) {
+    return { status: 400, data: { message: "Account is deactivated. Please contact support." } };
+  }
 
   const isValid = await bcrypt.compare(password, user.password);
-  if (!isValid) return { status: 400, data: { message: "Invalid credentials." } };
+  if (!isValid) {
+    return { status: 400, data: { message: "Invalid credentials." } };
+  }
 
-
-  const token = genToken(String(user._id));
+  const token = genToken(user.id);
   res.cookie("token", token, {   
     path: "/",
     httpOnly: true,
@@ -78,99 +158,147 @@ export const login = async (body: LoginBody, res: Response) => {
   return {
     status: 200,
     data: {
-      id: user._id,
-      userName: user.userName,
+      id: user.id,
+      fullName: user.full_name,
       email: user.email,
+      phoneNumber: user.phone_number,
       token,
-
     },
   };
 };
 
-
-// verfiyOtpservice
-export const verifyOTPService = async (email: string, otp: string): Promise<string> => {
-  if (!email || !otp) {
-    throw new Error("Email and OTP are required.");
+export const verifyOTPService = async (identifier: string, otp: string): Promise<string> => {
+  if (!identifier || !otp) {
+    throw new Error("Identifier and OTP are required.");
   }
 
-  const user = await User.findOne({ email });
+  const column = isEmail(identifier) ? 'email' : 'phone_number';
+  const { data: users, error } = await supabase
+    .from('users')
+    .select('id, is_verified, verification_code, verification_expires')
+    .eq(column, identifier)
+    .limit(1);
 
-  if (!user) {
+  if (error || !users || users.length === 0) {
     throw new Error("User not found.");
   }
 
-  if (user.isVerified) {
+  const user = users[0];
+
+  if (user.is_verified) {
     throw new Error("User is already verified.");
   }
 
-  if (user.verificationCode !== otp) {
+  if (user.verification_code !== otp) {
     throw new Error("Invalid OTP.");
   }
 
-  if (!user.verificationExpires || new Date() > new Date(user.verificationExpires)) {
+  if (!user.verification_expires || new Date() > new Date(user.verification_expires)) {
     throw new Error("OTP has expired. Please request a new one.");
   }
-  
 
-  user.isVerified = true;
-  user.verificationCode = undefined;
-  user.verificationExpires = undefined;
-  await user.save();
+  // Update user verification status
+  const { error: updateError } = await supabase
+    .from('users')
+    .update({
+      is_verified: true,
+      verification_code: null,
+      verification_expires: null,
+    })
+    .eq('id', user.id);
 
-  return "Email verified successfully. You can now log in.";
+  if (updateError) {
+    throw new Error("Error updating user verification status.");
+  }
+
+  return "Account verified successfully. You can now log in.";
 };
 
+// handlePasswordResetRequest
+export const handlePasswordResetRequest = async (identifier: string) => {
+  const column = isEmail(identifier) ? 'email' : 'phone_number';
+  const { data: users, error } = await supabase
+    .from('users')
+    .select('id, email, phone_number, is_verified, is_deactivated')
+    .eq(column, identifier)
+    .limit(1);
 
-
-// handlepasswordreset
-export const handlePasswordResetRequest = async (email: string) => {
-  const user = await User.findOne({ email });
-  if (!user) {
+  if (error || !users || users.length === 0) {
     throw new Error("User not found.");
   }
 
-  if (!user.isVerified) {
-    throw new Error("Please verify your email first before resetting password.");
+  const user = users[0];
+
+  if (!user.is_verified) {
+    throw new Error("Please verify your account first before resetting password.");
   }
 
-  if (user.isDeactivated) {
+  if (user.is_deactivated) {
     throw new Error("Account is deactivated. Please contact support.");
   }
 
   const otp = generateOTP();
-  user.resetToken = otp;
-  user.resetTokenExpires = new Date(Date.now() + 10 * 60 * 1000); 
-  await user.save();
+  const resetTokenExpires = new Date(Date.now() + 10 * 60 * 1000);
 
-  await sendOTP(email, otp);
+  const { error: updateError } = await supabase
+    .from('users')
+    .update({
+      reset_token: otp,
+      reset_token_expires: resetTokenExpires.toISOString(),
+      reset_token_verified: false,
+    })
+    .eq('id', user.id);
+
+  if (updateError) {
+    throw new Error("Error generating password reset token.");
+  }
+
+  // Send OTP
+  if (user.email && isEmail(identifier)) {
+    await sendOTP(user.email, otp);
+  } else if (user.phone_number) {
+    console.log(`SMS reset code for ${user.phone_number}: ${otp}`);
+  }
   
   return {
     success: true,
-    message: "OTP sent to your email."
+    message: "OTP sent to your registered contact method."
   };
 };
 
-// Updated handleOTPVerification 
 export const handleOTPVerification = async (otp: string) => {
-  const user = await User.findOne({ resetToken: otp });
+  const { data: users, error } = await supabase
+    .from('users')
+    .select('id, email, phone_number, reset_token_expires')
+    .eq('reset_token', otp)
+    .limit(1);
 
-  if (!user || (user.resetTokenExpires && new Date() > user.resetTokenExpires)) {
-    throw new Error("Invalid or expired OTP.");
+  if (error || !users || users.length === 0) {
+    throw new Error("Invalid OTP.");
   }
 
-  
-  user.resetTokenVerified = true; 
-  await user.save();
+  const user = users[0];
+
+  if (user.reset_token_expires && new Date() > new Date(user.reset_token_expires)) {
+    throw new Error("OTP has expired.");
+  }
+
+  const { error: updateError } = await supabase
+    .from('users')
+    .update({ reset_token_verified: true })
+    .eq('id', user.id);
+
+  if (updateError) {
+    throw new Error("Error verifying OTP.");
+  }
   
   return {
-    userId: user._id,
-    email: user.email,
+    userId: user.id,
+    identifier: user.email || user.phone_number,
     success: true,
     message: "OTP verified successfully. You can now reset your password."
   };
 };
-
 
 export const handlePasswordReset = async (
   password: string, 
@@ -185,38 +313,45 @@ export const handlePasswordReset = async (
     throw new Error("Passwords do not match.");
   }
 
-  // Basic password validation
   if (password.length < 6) {
     throw new Error("Password must be at least 6 characters long.");
   }
 
+  const column = isEmail(userIdentifier) ? 'email' : 'phone_number';
+  const { data: users, error } = await supabase
+    .from('users')
+    .select('id, reset_token, reset_token_expires, reset_token_verified')
+    .eq(column, userIdentifier)
+    .not('reset_token', 'is', null)
+    .eq('reset_token_verified', true)
+    .limit(1);
 
-  const user = await User.findOne({
-    $or: [
-      { email: userIdentifier }
-    ],
-    resetToken: { $ne: null },
-    resetTokenVerified: true
-  });
-
-  if (!user) {
+  if (error || !users || users.length === 0) {
     throw new Error("Invalid password reset session. Please restart the password reset process.");
   }
 
-  // Check if reset token is still valid
-  if (user.resetTokenExpires && new Date() > user.resetTokenExpires) {
+  const user = users[0];
+
+  if (user.reset_token_expires && new Date() > new Date(user.reset_token_expires)) {
     throw new Error("Password reset session has expired. Please restart the process.");
   }
 
   const salt = await bcrypt.genSalt(10);
-  user.password = await bcrypt.hash(password, salt);
-  
-  // Clear reset token fields
-  user.resetToken = undefined;
-  user.resetTokenExpires = undefined;
-  user.resetTokenVerified = undefined;
-  
-  await user.save();
+  const hashedPassword = await bcrypt.hash(password, salt);
+
+  const { error: updateError } = await supabase
+    .from('users')
+    .update({
+      password: hashedPassword,
+      reset_token: null,
+      reset_token_expires: null,
+      reset_token_verified: null,
+    })
+    .eq('id', user.id);
+
+  if (updateError) {
+    throw new Error("Error resetting password.");
+  }
   
   return {
     success: true,
@@ -224,92 +359,71 @@ export const handlePasswordReset = async (
   };
 };
 
-// get user profile
-export const getUserProfileData = async (user: string) => {
-  const userData = await User.findById(user).select("-password -verificationCode -verificationExpires -resetToken -resetTokenExpires").lean();
-  if (!userData) {
+export const getUserProfileData = async (userId: string) => {
+  const { data: user, error } = await supabase
+    .from('users')
+    .select('id, full_name, email, phone_number, is_verified, is_deactivated, created_at, updated_at')
+    .eq('id', userId)
+    .single();
+
+  if (error || !user) {
     throw new Error("User not found.");
   }
+
   return user;
-}
-
-
-
-export const requestChangeUserPassword = async (userId: string, currentPassword: string) => {
-
-  const user = await User.findById(userId).select("+password");  
-  if (!user) {
-    throw new Error("User not found.");
-  }
-
-  const isValid = await bcrypt.compare(currentPassword, user.password);
-  if (!isValid) {
-    throw new Error("Invalid current password.");
-  }
-
-  // send otp to user email
-  const otp = generateOTP();
-  user.otp = otp;
-  await user.save();
-
-  await changePasswordEmail(user.email, otp);
-
-  return {message: "OTP sent to your email for password change."
-  };
-  
-}
+};
 
 export const changeUserPassword = async (userId: string, newPassword: string, confirmPassword: string) => {
-
-
-  const user = await User.findById(userId).select("+otp");
-  if (!user) {
-    throw new Error("User not found.");
-  }
-
-
-
   if (newPassword !== confirmPassword) {
     throw new Error("Passwords do not match.");
   }
 
   const salt = await bcrypt.genSalt(10);
-  user.password = await bcrypt.hash(newPassword, salt);
-  // user.otp = "";
-  await user.save();
+  const hashedPassword = await bcrypt.hash(newPassword, salt);
 
-  return {message: "Password changed successfully."
-  };
+  const { error } = await supabase
+    .from('users')
+    .update({ password: hashedPassword })
+    .eq('id', userId);
 
-}
+  if (error) {
+    throw new Error("Error changing password.");
+  }
 
-
-
-
-// Permanently delete user account
-
+  return { message: "Password changed successfully." };
+};
 
 export const deleteUserPermanently = async (userId: string, password: string) => {
   try {
-    const user = await User.findById(userId).select("+password");
+    const { data: users, error: fetchError } = await supabase
+      .from('users')
+      .select('id, password, is_deactivated')
+      .eq('id', userId)
+      .limit(1);
 
-    if (!user) {
+    if (fetchError || !users || users.length === 0) {
       throw new Error("User not found.");
     }
 
-    // Check if account is already deactivated
-    if (user.isDeactivated) {
+    const user = users[0];
+
+    if (user.is_deactivated) {
       throw new Error("Cannot delete deactivated account. Please reactivate first or contact support.");
     }
 
-    // Verify password before deletion
     const isValidPassword = await bcrypt.compare(password, user.password);
     if (!isValidPassword) {
       throw new Error("Invalid password. Account deletion cancelled.");
     }
 
-    // Permanently delete the user
-    await User.findByIdAndDelete(userId);
+    const { error: deleteError } = await supabase
+      .from('users')
+      .delete()
+      .eq('id', userId);
+
+    if (deleteError) {
+      throw new Error("Error deleting user account.");
+    }
 
     return {
       success: true,
@@ -321,110 +435,136 @@ export const deleteUserPermanently = async (userId: string, password: string) =>
   }
 };
 
-
-
-
-
-
-// Get user by ID (excluding password)
 export const getUserById = async (userId: string) => {
   try {
-    const user = await User.findById(userId).select('-password -resetToken -resetTokenExpires -verificationCode -verificationExpires');
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('id, full_name, email, phone_number, is_verified, is_deactivated, created_at, updated_at')
+      .eq('id', userId)
+      .single();
     
-    if (!user) {
+    if (error || !user) {
       throw new Error("User not found.");
     }
     
-    return {
-      user
-    
-    };
-    
+    return { user };
   } catch (error) {
     console.error("Error fetching user profile:", error);
     throw error;
   }
 };
 
-// Resend email verification OTP
-export const resendEmailVerificationOTP = async (email: string) => {
+export const resendEmailVerificationOTP = async (identifier: string) => {
   try {
-    const user = await User.findOne({ email });
+    const column = isEmail(identifier) ? 'email' : 'phone_number';
+    const { data: users, error } = await supabase
+      .from('users')
+      .select('id, email, phone_number, is_verified, verification_expires')
+      .eq(column, identifier)
+      .limit(1);
     
-    if (!user) {
-      throw new Error("User not found with this email address.");
+    if (error || !users || users.length === 0) {
+      throw new Error("User not found with this contact information.");
+    }
+
+    const user = users[0];
+    
+    if (user.is_verified) {
+      throw new Error("Account is already verified.");
     }
     
-    if (user.isVerified) {
-      throw new Error("Email is already verified.");
-    }
-    
-    // Check if there's a recent OTP (prevent spam)
-    if (user.verificationExpires && new Date() < new Date(user.verificationExpires)) {
-      const timeLeft = Math.ceil((new Date(user.verificationExpires).getTime() - Date.now()) / (1000 * 60));
+    if (user.verification_expires && new Date() < new Date(user.verification_expires)) {
+      const timeLeft = Math.ceil((new Date(user.verification_expires).getTime() - Date.now()) / (1000 * 60));
       throw new Error(`Please wait ${timeLeft} minutes before requesting a new OTP.`);
     }
     
-    // Generate new OTP
     const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
-    const verificationExpires = new Date(Date.now() + 10 * 60 * 1000); 
+    const verificationExpires = new Date(Date.now() + 10 * 60 * 1000);
     
-    user.verificationCode = verificationCode;
-    user.verificationExpires = verificationExpires;
-    await user.save();
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({
+        verification_code: verificationCode,
+        verification_expires: verificationExpires.toISOString(),
+      })
+      .eq('id', user.id);
+
+    if (updateError) {
+      throw new Error("Error updating verification code.");
+    }
     
-    await sendVerificationEmail(email, verificationCode);
+    // Send via email or SMS
+    if (user.email && isEmail(identifier)) {
+      await sendVerificationEmail(user.email, verificationCode);
+    } else if (user.phone_number) {
+      console.log(`SMS verification code for ${user.phone_number}: ${verificationCode}`);
+    }
     
     return {
       success: true,
-      message: "Verification OTP has been resent to your email."
+      message: "Verification OTP has been resent to your registered contact method."
     };
-    
   } catch (error) {
-    console.error("Error resending email verification OTP:", error);
+    console.error("Error resending verification OTP:", error);
     throw error;
   }
 };
 
-// Resend password reset OTP
-export const resendPasswordResetOTP = async (email: string) => {
+export const resendPasswordResetOTP = async (identifier: string) => {
   try {
-    const user = await User.findOne({ email });
+    const column = isEmail(identifier) ? 'email' : 'phone_number';
+    const { data: users, error } = await supabase
+      .from('users')
+      .select('id, email, phone_number, is_verified, is_deactivated, reset_token_expires')
+      .eq(column, identifier)
+      .limit(1);
     
-    if (!user) {
-      throw new Error("User not found with this email address.");
+    if (error || !users || users.length === 0) {
+      throw new Error("User not found with this contact information.");
+    }
+
+    const user = users[0];
+    
+    if (!user.is_verified) {
+      throw new Error("Please verify your account first before resetting password.");
     }
     
-    if (!user.isVerified) {
-      throw new Error("Please verify your email first before resetting password.");
-    }
-    
-    if (user.isDeactivated) {
+    if (user.is_deactivated) {
       throw new Error("Account is deactivated. Please contact support.");
     }
     
-    // Check if there's a recent OTP (prevent spam)
-    if (user.resetTokenExpires && new Date() < new Date(user.resetTokenExpires)) {
-      const timeLeft = Math.ceil((new Date(user.resetTokenExpires).getTime() - Date.now()) / (1000 * 60));
+    if (user.reset_token_expires && new Date() < new Date(user.reset_token_expires)) {
+      const timeLeft = Math.ceil((new Date(user.reset_token_expires).getTime() - Date.now()) / (1000 * 60));
       throw new Error(`Please wait ${timeLeft} minutes before requesting a new OTP.`);
     }
     
-    // Generate new OTP
     const otp = generateOTP();
-    user.resetToken = otp;
-    user.resetTokenExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-    await user.save();
+    const resetTokenExpires = new Date(Date.now() + 10 * 60 * 1000);
+
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({
+        reset_token: otp,
+        reset_token_expires: resetTokenExpires.toISOString(),
+      })
+      .eq('id', user.id);
+
+    if (updateError) {
+      throw new Error("Error updating reset token.");
+    }
     
-    await sendOTP(email, otp);
+    if (user.email && isEmail(identifier)) {
+      await sendOTP(user.email, otp);
+    } else if (user.phone_number) {
+      console.log(`SMS reset code for ${user.phone_number}: ${otp}`);
+    }
     
     return {
       success: true,
-      message: "Password reset OTP has been resent to your email."
+      message: "Password reset OTP has been resent to your registered contact method."
     };
-    
   } catch (error) {
     console.error("Error resending password reset OTP:", error);
     throw error;
   }
 };
-

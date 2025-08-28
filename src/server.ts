@@ -7,7 +7,7 @@ import cors from "cors"
 import rateLimit from 'express-rate-limit'; 
 import dotenv from 'dotenv';
 import http from 'http';
-import connectDB from './config/dbConn';
+
 
 
 dotenv.config();
@@ -40,7 +40,7 @@ app.use("/api/auth", authRouter);
 // Start Server
 const startServer = async () => {
   try {
-    await connectDB();
+    
     const PORT = process.env.PORT || 5000;
     server.listen(PORT, () => {
       console.log(`🚀 Server running on http://localhost:${PORT}`);

@@ -1,38 +1,37 @@
 import { ObjectId } from "mongoose";
+import { Request } from "express";
 
 export interface RegisterBody {
-    fullName: string;
-    email: string;
-    password: string;
-    phoneNumber:string
-  }
-  
-  export interface LoginBody {
-    email: string;
-    password: string;
-    phoneNumber:number
-  }
-export interface IUser extends Document {  
-id: string;
-deactivatedAt:Date,
-createdAt:Date,
+  fullName: string;
+  email?: string;
+  phoneNumber?: string;
+  password: string;
+}
+
+export interface LoginBody {
+  identifier: string; // Can be email or phone number
+  password: string;
+}
+
+export interface IUser {  
+  id: string;
+  deactivatedAt?: Date;
+  createdAt?: Date;
   resetTokenVerified?: boolean;
-  email: string
+  email?: string;
+  phoneNumber?: string;
   password: string;
   confirm_password?: string;
   isVerified: boolean;
   verificationCode?: string;
   verificationExpires?: Date;
   resetTokenExpires?: Date;
-  fullName?: string;
-  phoneNumber?: string;
-  otp: string;
-  
+  fullName: string;
+  otp?: string;
 }
 
-
 export interface AuthenticatedRequest extends Request {
-  user?: IUser; 
+  user?: IUser;
 }
 
 export interface DecodedToken {

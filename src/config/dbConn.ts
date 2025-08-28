@@ -1,24 +1,15 @@
-import mongoose from "mongoose";
+import { createClient } from '@supabase/supabase-js'
+import dotenv from 'dotenv'
 
-mongoose.set("strictQuery", false);
+dotenv.config()
 
-const connectDB = async (): Promise<void> => {
-  try {
-    const dbUrl = process.env.DB_URL;
+const supabaseUrl = process.env.SUPABASE_URL
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-    if (!dbUrl) {
-      throw new Error("DB_URL is not defined in environment variables.");
-    }
+if (!supabaseUrl || !supabaseServiceKey) {
+  throw new Error('Missing Supabase environment variables!')
+}
 
-    const conn = await mongoose.connect(dbUrl);
-    console.log(`Database Running!!! ${conn.connection.host}`);
-  } catch (err) {
-    if (err instanceof Error) {
-      console.error("Database connection error:", err.message);
-    } else {
-      console.error("Unknown error occurred during DB connection.");
-    }
-  }
-};
+export const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-export default connectDB;
+export default supabase

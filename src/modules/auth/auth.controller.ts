@@ -1,29 +1,55 @@
-import { Request, Response} from 'express';
+import { Request, Response } from 'express';
 import asyncHandler from "express-async-handler";
 import * as userService from "./auth.service";
-import {  verifyOTPService } from "./auth.service";
-import { handlePasswordResetRequest,handleOTPVerification,handlePasswordReset} from "./auth.service";
-
-
-
+import { verifyOTPService } from "./auth.service";
+import { handlePasswordResetRequest, handleOTPVerification, handlePasswordReset } from "./auth.service";
+import { isEmail,isValidPhoneNumber } from '../../helpers/validation';
 
 
 // registration 
 export const registerUser = asyncHandler(async (req: Request, res: Response) => {
+  const { fullName, email, phoneNumber, password } = req.body;
+
+  if (!fullName || !password) {
+    res.status(400);
+    throw new Error("Full name and password are required.");
+  }
+
+  if (!email && !phoneNumber) {
+    res.status(400);
+    throw new Error("Either email or phone number is required.");
+  }
+
+  if (email && !isEmail(email)) {
+    res.status(400);
+    throw new Error("Please provide a valid email address.");
+  }
+
+  if (phoneNumber && !isValidPhoneNumber(phoneNumber)) {
+    res.status(400);
+    throw new Error("Please provide a valid phone number.");
+  }
 
   const result = await userService.register(req.body);
   
   res.status(result.status).json({
     ...result.data,
-    
   });
 });
 
 // login
 export const loginUser = asyncHandler(async (req: Request, res: Response) => {
-  const result = await userService.login(req.body, res);
+  const { identifier, password } = req.body;
+
+  if (!identifier || !password) {
+    res.status(400);
+    throw new Error("Identifier (email/phone) and password are required.");
+  }
+
+  const result = await userService.login({ identifier, password }, res);
   res.status(result.status).json(result.data);
 });
+
 // logout
 export const logOut = asyncHandler(async (_req: Request, res: Response) => {
   res.cookie("token", "", {
@@ -36,43 +62,55 @@ export const logOut = asyncHandler(async (_req: Request, res: Response) => {
   res.status(200).json({ message: "You have successfully logged out." });
 });
 
-
 // verifyotp
 export const verifyOTP = asyncHandler(async (req: Request, res: Response) => {
-    const { email, otp } = req.body;
-  
-    try {  
-      const message = await verifyOTPService(email, otp);
-      res.status(200).json({ message });
-    } catch (error: unknown) {
-      if (error instanceof Error) {
-        res.status(400);
-        throw new Error(error.message);
-      } else {
-        res.status(500);
-        throw new Error("An unexpected error occurred.");
-      }
+  const { identifier, otp } = req.body;
+
+  if (!identifier || !otp) {
+    res.status(400);
+    throw new Error("Identifier (email/phone) and OTP are required.");
+  }
+
+  // Validate OTP format
+  if (!/^\d{6}$/.test(otp)) {
+    res.status(400);
+    throw new Error("OTP must be a 6-digit number.");
+  }
+
+  try {  
+    const message = await verifyOTPService(identifier, otp);
+    res.status(200).json({ 
+      success: true,
+      message 
+    });
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      res.status(400);
+      throw new Error(error.message);
+    } else {
+      res.status(500);
+      throw new Error("An unexpected error occurred.");
     }
-  });
+  }
+});
   
-// reqestpasswordreset
-  export const requestPasswordReset = asyncHandler(async (req: Request, res: Response): Promise<void> => {
-  const { email } = req.body as { email?: string };
+// requestPasswordReset
+export const requestPasswordReset = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+  const { identifier } = req.body as { identifier?: string };
 
-  if (!email) {
+  if (!identifier) {
     res.status(400);
-    throw new Error("Email is required.");
+    throw new Error("Email or phone number is required.");
   }
 
-  // Basic email validation
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(email)) {
+  // Validate identifier format
+  if (!isEmail(identifier) && !isValidPhoneNumber(identifier)) {
     res.status(400);
-    throw new Error("Please provide a valid email address.");
+    throw new Error("Please provide a valid email address or phone number.");
   }
-
+  
   try {
-    const result = await handlePasswordResetRequest(email);
+    const result = await handlePasswordResetRequest(identifier);
     res.status(200).json({ 
       success: result.success,
       message: result.message 
@@ -110,7 +148,7 @@ export const verifyResetOTP = asyncHandler(async (req: Request, res: Response): 
       message: result.message,
       data: {
         userId: result.userId,
-        email: result.email
+        identifier: result.identifier
       }
     });
   } catch (error: unknown) {
@@ -158,165 +196,3 @@ export const resetPassword = asyncHandler(async (req: Request, res: Response): P
     }
   }
 });
-
-
-  export const changePassword = asyncHandler(async (req: Request, res: Response): Promise<void> => {
-    const { password, confirmPassword } = req.body as {
-      password?: string;
-      confirmPassword?: string;
-    };  
-    const user = req.user?.id as string;  
-
-    if (!password || !confirmPassword) {
-      res.status(400);
-      throw new Error("Both new password and confirm new password are required.");
-    }
-
-    if (password !== confirmPassword) {
-      res.status(400);
-      throw new Error("New password and confirm new password do not match.");
-    }
-
-    await userService.changeUserPassword(user, password, confirmPassword);
-    res.status(200).json({ message: "Password changed successfully." });
-  });
-
- 
-
-
-
-
-
-  export const deleteAccount = asyncHandler(async (req: Request, res: Response) => {
-  const userId = req.user?.id;
-  
-  if (!userId) {
-    res.status(401);
-    throw new Error("User not authenticated."); 
-  }
-  
-  const { password } = req.body as { password?: string };
-  
-  if (!password) {
-    res.status(400);
-    throw new Error("Password is required to delete account.");
-  }
-  
-  try {
-    const result = await userService.deleteUserPermanently(userId, password);
-    
-   
-    res.cookie("token", "", {
-      path: "/",
-      httpOnly: true,
-      expires: new Date(0),
-      sameSite: "none",
-      secure: true,
-    });
-    
-    res.status(200).json({
-      success: true,
-      message: result.message
-    });
-  } catch (error: unknown) {
-    if (error instanceof Error) {
-      res.status(400);
-      throw new Error(error.message);
-    } else {
-      res.status(500);
-      throw new Error("An unexpected error occurred while deleting account.");
-    }
-  }
-});
-
-
-
-
-
-
-
-
-// Get user profile/details (excluding password)
-export const getUserProfile = asyncHandler(async (req: Request, res: Response) => {
-  const userId = req.user?.id;
-  
-  if (!userId) {
-    res.status(401);
-    throw new Error("User not authenticated.");
-  }
-  
-  try {
-    const user = await userService.getUserById(userId);
-    res.status(200).json({
-      success: true,
-      data: user
-    });
-  } catch (error: unknown) {
-    if (error instanceof Error) {
-      res.status(400);
-      throw new Error(error.message);
-    } else {
-      res.status(500);
-      throw new Error("An unexpected error occurred while fetching user profile.");
-    }
-  }
-});
-
-// Resend OTP for email verification
-export const resendVerificationOTP = asyncHandler(async (req: Request, res: Response) => {
-  const { email } = req.body as { email?: string };
-  
-  if (!email) {
-    res.status(400);
-    throw new Error("Email is required.");
-  }
-  
-  try {
-    await userService.resendEmailVerificationOTP(email);
-    res.status(200).json({ 
-      success: true,
-      message: "Verification OTP has been resent to your email." 
-    });
-  } catch (error: unknown) {
-    if (error instanceof Error) {
-      res.status(400);
-      throw new Error(error.message);
-    } else {
-      res.status(500);
-      throw new Error("An unexpected error occurred while resending verification OTP.");
-    }
-  }
-});
-
-// Resend OTP for password reset
-export const resendPasswordResetOTP = asyncHandler(async (req: Request, res: Response) => {
-  const { email } = req.body as { email?: string };
-  
-  if (!email) {
-    res.status(400);
-    throw new Error("Email is required.");
-  }
-  
-  try {
-    await userService.resendPasswordResetOTP(email);
-    res.status(200).json({ 
-      success: true,
-      message: "Password reset OTP has been resent to your email." 
-    });
-  } catch (error: unknown) {
-    if (error instanceof Error) {
-      res.status(400);
-      throw new Error(error.message);
-    } else {
-      res.status(500);
-      throw new Error("An unexpected error occurred while resending password reset OTP.");
-    }
-  }
-});
-
-
-
-
-
-
-
