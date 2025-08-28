@@ -5,6 +5,16 @@ const router = express.Router();
 
 /**
  * @swagger
+ * openapi: 3.0.0
+ * info:
+ *   title: Auth API
+ *   version: 1.0.0
+ *   description: Authentication and password reset API
+ * servers:
+ *   - url: http://localhost:5000
+ */
+/**
+ * @swagger
  * components:
  *   securitySchemes:
  *     bearerAuth:

@@ -1,4 +1,3 @@
-// auth.service.ts
 import bcrypt from "bcryptjs";
 import { Response } from "express";
 import { supabase } from "../../config/dbConn";
