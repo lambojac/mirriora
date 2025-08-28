@@ -1,5 +1,4 @@
 import express, { Request, Response } from 'express';
-import auth from "./modules/auth/auth.route";
 import swaggerUi from "swagger-ui-express";
 import swaggerSpec from "./swagger";
 import authRouter from "./modules/auth/auth.route";
@@ -8,9 +7,8 @@ import cors from "cors"
 import rateLimit from 'express-rate-limit'; 
 import dotenv from 'dotenv';
 import http from 'http';
-import path from 'path';
 import connectDB from './config/dbConn';
-import mongoose from 'mongoose';
+
 
 dotenv.config();
 

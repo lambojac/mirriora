@@ -2,13 +2,9 @@ import { Request, Response} from 'express';
 import asyncHandler from "express-async-handler";
 import * as userService from "./auth.service";
 import {  verifyOTPService } from "./auth.service";
-import {
-    handlePasswordResetRequest,
-    handleOTPVerification,
-    handlePasswordReset
-  } from "./auth.service";
+import { handlePasswordResetRequest,handleOTPVerification,handlePasswordReset} from "./auth.service";
 
-import User from "../../modules/schemas/user";
+
 
 
 
@@ -17,7 +13,6 @@ export const registerUser = asyncHandler(async (req: Request, res: Response) => 
 
   const result = await userService.register(req.body);
   
-  // Include account type in response
   res.status(result.status).json({
     ...result.data,
     
@@ -61,7 +56,6 @@ export const verifyOTP = asyncHandler(async (req: Request, res: Response) => {
   });
   
 // reqestpasswordreset
-  
   export const requestPasswordReset = asyncHandler(async (req: Request, res: Response): Promise<void> => {
   const { email } = req.body as { email?: string };
 
@@ -166,21 +160,6 @@ export const resetPassword = asyncHandler(async (req: Request, res: Response): P
 });
 
 
-
-
-  export const requestChangePassword = asyncHandler(async (req: Request, res: Response): Promise<void> => {
-    const { currentPassword } = req.body as { currentPassword?: string };
-    const user = req.user?.id as string;  
-  
-    if (!currentPassword) {
-      res.status(400);
-      throw new Error("Current Password required.");
-    }     
-
-    const result = await userService.requestChangeUserPassword(user, currentPassword);
-    res.status(200).json({message: "Password changed successfully." });
-  });
-
   export const changePassword = asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const { password, confirmPassword } = req.body as {
       password?: string;
@@ -226,7 +205,7 @@ export const resetPassword = asyncHandler(async (req: Request, res: Response): P
   try {
     const result = await userService.deleteUserPermanently(userId, password);
     
-    // Clear the authentication cookie
+   
     res.cookie("token", "", {
       path: "/",
       httpOnly: true,

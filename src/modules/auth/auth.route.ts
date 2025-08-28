@@ -1,9 +1,7 @@
 import express from 'express';
-import { loginUser, logOut, registerUser,verifyOTP,requestPasswordReset, resetPassword, verifyResetOTP, changePassword, requestChangePassword, setTransactionPin, requestChangeTransactionPin, changeTransactionPin, requestDeleteAccount, generateUserReferralCode, getReferralInfo, getUserProfile, resendVerificationOTP, resendPasswordResetOTP,createPIN, loginWithPIN, requestPINReset, verifyPINResetOTP, resetPIN, changePIN, checkPINStatus} from './auth.controller';
+import { loginUser, logOut, registerUser,verifyOTP,requestPasswordReset, resetPassword, verifyResetOTP, resendPasswordResetOTP, resendVerificationOTP, getUserProfile} from './auth.controller';
 
 import protect from '../../middlewares/auth';
-
-
 const router = express.Router();
 
   
@@ -438,137 +436,7 @@ router.post("/verify-reset-otp", verifyResetOTP);
  */
 router.post("/reset-password", resetPassword);  
 
-/**
- * @swagger
- * /api/auth/referral/generate:
- *   post:
- *     summary: Generate user referral code
- *     description: Generates a unique referral code for the authenticated user
- *     tags:
- *       - Referral
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Referral code generated successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 data:
- *                   type: object
- *                   properties:
- *                     referralCode:
- *                       type: string
- *                       example: "REF123ABC456"
- *                     message:
- *                       type: string
- *                       example: "Referral code generated successfully"
- *       400:
- *         description: Bad request or referral code already exists
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: "Referral code already exists for this user"
- *       401:
- *         description: User not authenticated
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: "User not authenticated."
- *       500:
- *         description: Internal server error
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: "An unexpected error occurred."
- */
-router.post("/referral/generate", protect, generateUserReferralCode);
 
-/**
- * @swagger
- * /api/auth/referral/info:
- *   get:
- *     summary: Get user referral information
- *     description: Retrieves referral information for the authenticated user including referral code and statistics
- *     tags:
- *       - Referral
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Referral information retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 data:
- *                   type: object
- *                   properties:
- *                     referralCode:
- *                       type: string
- *                       example: "REF123ABC456"
- *                     totalReferrals:
- *                       type: number
- *                       example: 5
- *                     successfulReferrals:
- *                       type: number
- *                       example: 3
- *                     referralEarnings:
- *                       type: number
- *                       example: 150.00
- *       401:
- *         description: User not authenticated
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: "User not authenticated."
- *       400:
- *         description: Bad request
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: "Error retrieving referral information"
- *       500:
- *         description: Internal server error
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: "An unexpected error occurred."
- */
-router.get("/referral/info", protect, getReferralInfo);
 
 /**
  * @swagger
@@ -767,13 +635,6 @@ router.post('/resend-verification-otp', resendVerificationOTP);
  *                   example: "An unexpected error occurred while resending password reset OTP."
  */
 router.post('/resend-password-reset-otp', resendPasswordResetOTP);
-router.post("/create-pin", protect, createPIN);
-router.post("/login-pin", loginWithPIN);
-router.post("/request-pin-reset", requestPINReset);
-router.post("/verify-pin-reset-otp", verifyPINResetOTP);
-router.post("/reset-pin", resetPIN);
-router.post("/change-pin", protect, changePIN);
-router.get("/pin-status", protect, checkPINStatus);
-router.post("/transaction-pin",protect,setTransactionPin)
+
 export default router;
 

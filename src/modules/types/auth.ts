@@ -1,4 +1,4 @@
-
+import { ObjectId } from "mongoose";
 
 export interface RegisterBody {
     fullName: string;
@@ -13,6 +13,7 @@ export interface RegisterBody {
     phoneNumber:number
   }
 export interface IUser extends Document {  
+id: string;
 deactivatedAt:Date,
 createdAt:Date,
   resetTokenVerified?: boolean;
@@ -32,4 +33,9 @@ createdAt:Date,
 
 export interface AuthenticatedRequest extends Request {
   user?: IUser; 
+}
+
+export interface DecodedToken {
+  id: string;
+  [key: string]: string;
 }

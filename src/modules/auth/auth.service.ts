@@ -1,4 +1,4 @@
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 import { Response } from "express";
 import User from "../../modules/schemas/user";
 import genToken from "../../modules/utils/tokenGen";
@@ -267,9 +267,7 @@ export const changeUserPassword = async (userId: string, newPassword: string, co
     throw new Error("User not found.");
   }
 
-  // if (user.otp !== otp) {
-  //   throw new Error("Invalid OTP.");
-  // }
+
 
   if (newPassword !== confirmPassword) {
     throw new Error("Passwords do not match.");
@@ -284,27 +282,6 @@ export const changeUserPassword = async (userId: string, newPassword: string, co
   };
 
 }
-
-
-  
-
-export const requestUserDeleteAccount = async (userId: string) => {
-  const user = await User.findById(userId);
-  if (!user) {
-    throw new Error("User not found.");
-  }
-
-  // send otp to user email
-  const otp = generateOTP();
-  user.otp = otp;
-  await user.save();
-
-  await deleteUserAccount(user.email, otp);
-
-  return {message: "OTP sent to your email for account deletion."
-  };
-}
-
 
 
 
