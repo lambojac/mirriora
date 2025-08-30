@@ -23,6 +23,6 @@
     }
   },
   "lib": ["es2015"],
-  "include": ["**/*.ts"],
+  "include": ["**/*.ts", "types/**/*.d.ts"],
   "exclude": ["../node_modules"]
 }
