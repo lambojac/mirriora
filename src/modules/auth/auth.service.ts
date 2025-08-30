@@ -26,90 +26,170 @@ export const register = async (body: RegisterBody) => {
     return { status: 400, data: { message: "Please provide a valid phone number." } };
   }
 
-  // Check for existing user
-  let existingUserQuery = `
-    SELECT id, email, phone_number 
-    FROM users 
-    WHERE 
-  `;
+  try {
+    // Check for existing user with email
+    if (email) {
+      const { data: existingEmailUser, error: emailCheckError } = await supabase
+        .from('users')
+        .select('id, email')
+        .eq('email', email)
+        .limit(1);
 
-  const conditions = [];
-  const params = [];
-
-  if (email) {
-    conditions.push('email = $' + (params.length + 1));
-    params.push(email);
-  }
-
-  if (phoneNumber) {
-    conditions.push('phone_number = $' + (params.length + 1));
-    params.push(phoneNumber);
-  }
-
-  existingUserQuery += conditions.join(' OR ');
-
-  const { data: existingUser } = await supabase.rpc('execute_sql', {
-    query: existingUserQuery,
-    params
-  });
-
-  if (existingUser && existingUser.length > 0) {
-    const user = existingUser[0];
-    if (user.email === email) {
-      return { status: 400, data: { message: "User with this email already exists." } };
-    }
-    if (user.phone_number === phoneNumber) {
-      return { status: 400, data: { message: "User with this phone number already exists." } };
-    }
-  }
-
-  const hashedPassword = await bcrypt.hash(password, 10);
-  const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
-  const verificationExpires = new Date(Date.now() + 10 * 60 * 1000);
-
-  // Insert new user
-  const { data: newUser, error } = await supabase
-    .from('users')
-    .insert([{
-      full_name: fullName,
-      email: email || null,
-      phone_number: phoneNumber || null,
-      password: hashedPassword,
-      verification_code: verificationCode,
-      verification_expires: verificationExpires.toISOString(),
-      is_verified: false,
-    }])
-    .select('id, full_name, email, phone_number, is_verified')
-    .single();
-
-  if (error) {
-    console.error('Error creating user:', error);
-    return { status: 500, data: { message: "Error creating user account." } };
-  }
-
-  // Send verification
-  if (email) {
-    await sendVerificationEmail(email, verificationCode);
-  } else if (phoneNumber) {
-    console.log(`SMS verification code for ${phoneNumber}: ${verificationCode}`);
-  }
-
-  return {
-    status: 201,
-    data: {
-      message: `Registration successful. Please verify your ${email ? 'email' : 'phone number'}.`,
-      userId: newUser.id,
-      user: {
-        id: newUser.id,
-        fullName: newUser.full_name,
-        email: newUser.email,
-        phoneNumber: newUser.phone_number,
-        isVerified: newUser.is_verified
+      if (emailCheckError) {
+        console.error('Error checking existing email:', emailCheckError);
+        return { 
+          status: 500, 
+          data: { message: "Database error occurred while checking email existence." } 
+        };
       }
-    },
-  };
-};
 
+      if (existingEmailUser && existingEmailUser.length > 0) {
+        return { status: 400, data: { message: "User with this email already exists." } };
+      }
+    }
+
+    // Check for existing user with phone number
+    if (phoneNumber) {
+      const { data: existingPhoneUser, error: phoneCheckError } = await supabase
+        .from('users')
+        .select('id, phone_number')
+        .eq('phone_number', phoneNumber)
+        .limit(1);
+
+      if (phoneCheckError) {
+        console.error('Error checking existing phone:', phoneCheckError);
+        return { 
+          status: 500, 
+          data: { message: "Database error occurred while checking phone number existence." } 
+        };
+      }
+
+      if (existingPhoneUser && existingPhoneUser.length > 0) {
+        return { status: 400, data: { message: "User with this phone number already exists." } };
+      }
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const verificationExpires = new Date(Date.now() + 10 * 60 * 1000);
+
+    // Insert new user
+    const { data: newUser, error } = await supabase
+      .from('users')
+      .insert([{
+        full_name: fullName,
+        email: email || null,
+        phone_number: phoneNumber || null,
+        password: hashedPassword,
+        verification_code: verificationCode,
+        verification_expires: verificationExpires.toISOString(),
+        is_verified: false,
+      }])
+      .select('id, full_name, email, phone_number, is_verified')
+      .single();
+
+    if (error) {
+      console.error('Error creating user:', error);
+      
+      // Handle specific Supabase/PostgreSQL errors
+      if (error.code === '23505') { // Unique constraint violation
+        if (error.message.includes('email')) {
+          return { status: 400, data: { message: "User with this email already exists." } };
+        }
+        if (error.message.includes('phone_number') || error.message.includes('phone')) {
+          return { status: 400, data: { message: "User with this phone number already exists." } };
+        }
+        return { status: 400, data: { message: "User with these credentials already exists." } };
+      }
+      
+      if (error.code === '23502') { // Not null constraint violation
+        return { status: 400, data: { message: "Required field is missing." } };
+      }
+      
+      if (error.code === '23514') { // Check constraint violation
+        return { status: 400, data: { message: "Invalid data format provided." } };
+      }
+      
+      // Handle connection or permission errors
+      if (error.message?.toLowerCase().includes('connection') || 
+          error.message?.toLowerCase().includes('timeout')) {
+        return { status: 503, data: { message: "Database connection error. Please try again later." } };
+      }
+      
+      if (error.message?.toLowerCase().includes('permission') || 
+          error.message?.toLowerCase().includes('access')) {
+        return { status: 500, data: { message: "Database access error. Please contact support." } };
+      }
+      
+      // Generic database error with more specific message
+      return { 
+        status: 500, 
+        data: { 
+          message: "Failed to create user account. Please try again.", 
+          ...(process.env.NODE_ENV === 'development' && { 
+            errorDetails: error.message,
+            errorCode: error.code 
+          })
+        } 
+      };
+    }
+
+    // Send verification
+    try {
+      if (email) {
+        await sendVerificationEmail(email, verificationCode);
+      } else if (phoneNumber) {
+        console.log(`SMS verification code for ${phoneNumber}: ${verificationCode}`);
+      }
+    } catch (emailError) {
+      console.error('Error sending verification email:', emailError);
+      // User is created but email failed - still return success with a note
+      return {
+        status: 201,
+        data: {
+          message: `Registration successful but verification ${email ? 'email' : 'SMS'} failed to send. Please use resend verification option.`,
+          userId: newUser.id,
+          user: {
+            id: newUser.id,
+            fullName: newUser.full_name,
+            email: newUser.email,
+            phoneNumber: newUser.phone_number,
+            isVerified: newUser.is_verified
+          },
+          verificationSent: false
+        },
+      };
+    }
+
+    return {
+      status: 201,
+      data: {
+        message: `Registration successful. Please verify your ${email ? 'email' : 'phone number'}.`,
+        userId: newUser.id,
+        user: {
+          id: newUser.id,
+          fullName: newUser.full_name,
+          email: newUser.email,
+          phoneNumber: newUser.phone_number,
+          isVerified: newUser.is_verified
+        },
+        verificationSent: true
+      },
+    };
+
+  } catch (error) {
+    console.error('Unexpected error during registration:', error);
+    return { 
+      status: 500, 
+      data: { 
+        message: "An unexpected error occurred during registration. Please try again.",
+        ...(process.env.NODE_ENV === 'development' && error instanceof Error && { 
+          errorDetails: error.message 
+        })
+      } 
+    };
+  }
+};
 // login
 export const login = async (body: LoginBody, res: Response) => {
   const { identifier, password } = body;
