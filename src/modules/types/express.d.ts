@@ -1,9 +1,19 @@
 import { User } from "./auth"; 
+import { Request } from 'express';
 
 declare global {
   namespace Express {
-    export interface Request {
-      user?: User & { id: string }; 
+    interface Request {
+      user?: {
+        id: string;
+        email?: string;
+        phoneNumber?: string;
+        fullName?: string;
+        isVerified?: boolean;
+        [key: string]: any;
+      };
     }
   }
 }
+
+export {};

@@ -226,7 +226,7 @@ router.get('/logout', logOut);
  *                 example: "john.doe@example.com or +1234567890"
  *               otp:
  *                 type: string
- *                 pattern: "^\d{6}$"
+ *                 pattern: "^\\d{6}$"
  *                 example: "123456"
  *     responses:
  *       200:
@@ -309,7 +309,7 @@ router.post('/request-password-reset', requestPasswordReset);
  *             properties:
  *               otp:
  *                 type: string
- *                 pattern: "^\d{6}$"
+ *                 pattern: "^\\d{6}$"
  *                 example: "123456"
  *     responses:
  *       200:
