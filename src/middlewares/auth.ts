@@ -26,7 +26,7 @@ export const protect = asyncHandler(async (req: Request, res: Response, next: Ne
       throw new Error("User not found in database");
     }
 
-    req.user = userRecord;
+   (req as any).user = userRecord;
     next();
   } catch (err) {
     res.status(401);
