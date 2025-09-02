@@ -2,6 +2,7 @@ import express, { Request, Response } from 'express';
 import swaggerUi from "swagger-ui-express";
 import swaggerSpec from "./swagger";
 import authRouter from "./modules/auth/auth.route";
+import surveyRoutes from "./modules/survey/survey.route"
 import helmet from 'helmet';
 import cors from "cors"
 import rateLimit from 'express-rate-limit'; 
@@ -36,7 +37,7 @@ app.get("/", (_req: Request, res: Response) => {
 const server = http.createServer(app);
 
 app.use("/api/auth", authRouter);
-
+app.use("/api/survey", surveyRoutes);
 // Start Server
 const startServer = async () => {
   try {
