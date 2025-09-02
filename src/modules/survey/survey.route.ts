@@ -66,7 +66,7 @@ router.get("/unanswered/:userId", fetchUnanswered);
  *           schema:
  *             type: object
  *             properties:
- *               question_id:
+ *               questionId:
  *                 type: string
  *               answer:
  *                 type: string
