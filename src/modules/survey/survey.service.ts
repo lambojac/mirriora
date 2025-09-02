@@ -29,11 +29,13 @@ export const submitAnswer = async (
   questionId: string,
   answer: string
 ): Promise<SurveyAnswer> => {
+  // Check if already answered
   const { data: existing, error: fetchError } = await supabase
     .from("survey_answers")
     .select("*")
     .eq("user_id", userId)
     .eq("question_id", questionId)
+    .limit(1)
     .maybeSingle();
 
   if (fetchError) throw new Error(fetchError.message);
@@ -53,6 +55,7 @@ export const submitAnswer = async (
 
   return data as SurveyAnswer;
 };
+
 
 
 export const getAllQuestions = async (): Promise<SurveyQuestion[]> => {

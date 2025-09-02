@@ -22,8 +22,12 @@ export const getNext = async (req: Request, res: Response) => {
 
 export const answer = async (req: Request, res: Response) => {
   try {
-     const { userId } = req.params;
+    const { userId } = req.params;
     const { questionId, answer } = req.body;
+
+    if (!questionId || !answer) {
+      return res.status(400).json({ error: "Question ID and answer are required" });
+    }
 
     const savedAnswer = await submitAnswer(userId, questionId, answer);
 
@@ -32,7 +36,6 @@ export const answer = async (req: Request, res: Response) => {
     res.status(400).json({ error: err.message });
   }
 };
-
 
 export const fetchAll = async (req: Request, res: Response) => {
   try {
