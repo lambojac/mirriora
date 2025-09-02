@@ -29,6 +29,20 @@ export const submitAnswer = async (
   questionId: string,
   answer: string
 ): Promise<SurveyAnswer> => {
+  const { data: existing, error: fetchError } = await supabase
+    .from("survey_answers")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("question_id", questionId)
+    .maybeSingle();
+
+  if (fetchError) throw new Error(fetchError.message);
+
+  if (existing) {
+    throw new Error("This question has already been answered.");
+  }
+
+  // Insert if not answered
   const { data, error } = await supabase
     .from("survey_answers")
     .insert([{ user_id: userId, question_id: questionId, answer }])
