@@ -9,7 +9,7 @@ export interface RegisterBody {
 }
 
 export interface LoginBody {
-  identifier: string; 
+  identifier: string; // Can be email or phone number
   password: string;
 }
 
