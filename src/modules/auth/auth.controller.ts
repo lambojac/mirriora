@@ -11,7 +11,8 @@ import {
   deleteUserPermanently,
   getUserById,
   resendEmailVerificationOTP,
-  resendPasswordResetOTP
+  resendPasswordResetOTP,
+  editUserProfile
 } from "./auth.service";
 import { isEmail, isValidPhoneNumber } from '../../helpers/validation';
 
@@ -534,6 +535,36 @@ export const resendPasswordResetOTPController = asyncHandler(async (req: Request
         success: false,
         message: "An unexpected error occurred while resending password reset OTP."
       });
+    }
+  }
+});
+
+
+// controller
+export const updateUserProfile = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+  const { userId } = req.params;
+  const { fullName, email, phoneNumber } = req.body;
+
+  if (!userId) {
+    res.status(400).json({
+      success: false,
+      message: "User ID is required.",
+    });
+    return;
+  }
+
+  try {
+    const updatedUser = await editUserProfile(userId, { fullName, email, phoneNumber });
+    res.status(200).json({
+      success: true,
+      message: "User profile updated successfully.",
+      data: updatedUser,
+    });
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      res.status(400).json({ success: false, message: error.message });
+    } else {
+      res.status(500).json({ success: false, message: "Unexpected error occurred." });
     }
   }
 });

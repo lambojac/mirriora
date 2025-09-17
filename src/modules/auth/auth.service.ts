@@ -647,3 +647,41 @@ export const resendPasswordResetOTP = async (identifier: string) => {
     throw error;
   }
 };
+
+
+export const editUserProfile = async (
+  userId: string,
+  updates: { fullName?: string; email?: string; phoneNumber?: string }
+) => {
+  const { fullName, email, phoneNumber } = updates;
+
+  if (!fullName && !email && !phoneNumber) {
+    throw new Error("At least one field (fullName, email, phoneNumber) must be provided.");
+  }
+
+  if (email && !isEmail(email)) {
+    throw new Error("Please provide a valid email address.");
+  }
+
+  if (phoneNumber && !isValidPhoneNumber(phoneNumber)) {
+    throw new Error("Please provide a valid phone number.");
+  }
+
+  const { data, error } = await supabase
+    .from("users")
+    .update({
+      ...(fullName && { full_name: fullName }),
+      ...(email && { email }),
+      ...(phoneNumber && { phone_number: phoneNumber }),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", userId)
+    .select("id, full_name, email, phone_number, updated_at")
+    .single();
+
+  if (error) {
+    throw new Error("Error updating user profile.");
+  }
+
+  return data;
+};

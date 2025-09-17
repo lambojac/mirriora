@@ -1,5 +1,5 @@
 import express from 'express';
-import { loginUser, logOut, registerUser,verifyOTP,requestPasswordReset, resetPassword, verifyResetOTP,resendVerificationOTP,resendPasswordResetOTPController,getUserProfile,changePassword,deleteUser,getUser} from './auth.controller';
+import { loginUser, logOut, registerUser,verifyOTP,requestPasswordReset, resetPassword, verifyResetOTP,resendVerificationOTP,resendPasswordResetOTPController,getUserProfile,changePassword,deleteUser,getUser, updateUserProfile} from './auth.controller';
 import protect from '../../middlewares/auth';
 const router = express.Router();
 
@@ -753,5 +753,77 @@ router.delete('/delete/:userId',protect, deleteUser);
  *               $ref: '#/components/schemas/Error'
  */
 router.get('/user/:userId', protect, getUser);
+/**
+ * @swagger
+ * /api/auth/{userId}/profile:
+ *   put:
+ *     summary: Update a user profile
+ *     description: Update the full name, email, or phone number of a user.
+ *     tags:
+ *       - Users
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         description: The ID of the user to update
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               fullName:
+ *                 type: string
+ *                 example: John Doe
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: johndoe@example.com
+ *               phoneNumber:
+ *                 type: string
+ *                 example: "+1234567890"
+ *     responses:
+ *       200:
+ *         description: User profile updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: User profile updated successfully.
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                       example: "123e4567-e89b-12d3-a456-426614174000"
+ *                     full_name:
+ *                       type: string
+ *                       example: John Doe
+ *                     email:
+ *                       type: string
+ *                       example: johndoe@example.com
+ *                     phone_number:
+ *                       type: string
+ *                       example: "+1234567890"
+ *                     updated_at:
+ *                       type: string
+ *                       format: date-time
+ *       400:
+ *         description: Bad request (validation or missing fields)
+ *       404:
+ *         description: User not found
+ *       500:
+ *         description: Internal server error
+ */
+router.put("/:userId/profile", updateUserProfile);
 
 export default router;
