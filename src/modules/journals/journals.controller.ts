@@ -1,7 +1,8 @@
 import { Request, Response } from "express";
 import { JournalService } from "./journals.service";
-
+import { supabase } from "../../config/dbConn";
 export const JournalController = {
+  // create journal
   async create(req: Request, res: Response) {
     const userId = (req as any).user.id;
     const { title, description } = req.body;
@@ -10,7 +11,7 @@ export const JournalController = {
     if (error) return res.status(400).json({ error: error.message });
     res.json(data);
   },
-
+  // update scan
   async update(req: Request, res: Response) {
     const userId = (req as any).user.id;
     const { id } = req.params;
@@ -20,7 +21,7 @@ export const JournalController = {
     if (error) return res.status(400).json({ error: error.message });
     res.json(data);
   },
-
+  // remove 
   async remove(req: Request, res: Response) {
     const userId = (req as any).user.id;
     const { id } = req.params;
@@ -29,14 +30,14 @@ export const JournalController = {
     if (error) return res.status(400).json({ error: error.message });
     res.json({ message: "Journal deleted" });
   },
-
+  // getAll
   async getAll(req: Request, res: Response) {
     const userId = (req as any).user.id;
     const { data, error } = await JournalService.getAllJournals(userId);
     if (error) return res.status(400).json({ error: error.message });
     res.json(data);
   },
-
+  // getonescan
   async getOne(req: Request, res: Response) {
     const userId = (req as any).user.id;
     const { id } = req.params;
@@ -45,4 +46,57 @@ export const JournalController = {
     if (error) return res.status(400).json({ error: error.message });
     res.json(data);
   },
+  // upload scan
+  async uploadScan(req: Request, res: Response) {
+    const userId = (req as any).user.id;
+    const { id: journalId } = req.params;
+    const file = req.file;
+
+    console.log("📌 User ID:", userId);
+    console.log("📌 Journal ID:", journalId);
+    console.log("📌 Uploaded file:", file?.originalname, file?.mimetype);
+
+    if (!file) {
+      return res.status(400).json({ error: "No file uploaded" });
+    }
+
+    const filePath = `journals/${journalId}/${Date.now()}-${file.originalname}`;
+    console.log("📌 File path to upload:", filePath);
+
+    // Upload to Supabase storage
+    const { data: storageData, error: storageError } = 
+    await supabase.storage.from("scan").upload(filePath, file.buffer, { contentType: file.mimetype }); 
+    if (storageError) { return res.status(400).json({ error: storageError.message }); }
+     console.log("📌 Storage data:", storageData);
+    // Save metadata to scans table
+    const { data, error } = await supabase
+      .from("scans")
+      .insert([
+        {
+          journal_id: journalId,
+          file_url: storageData.path,
+
+          user_id: userId
+        }
+      ])
+      .select();
+
+    console.log("📌 DB insert result:", data);
+
+    if (error) {
+      return res.status(400).json({ error: error.message });
+    }
+
+    res.json(data);
+  }
+
+
 };
+
+
+
+
+
+
+
+
