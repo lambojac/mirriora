@@ -51,10 +51,8 @@ export const JournalController = {
     const userId = (req as any).user.id;
     const { id: journalId } = req.params;
     const file = req.file;
-
-    console.log("📌 User ID:", userId);
-    console.log("📌 Journal ID:", journalId);
-    console.log("📌 Uploaded file:", file?.originalname, file?.mimetype);
+    const { title, personal_note } = req.body;
+  
 
     if (!file) {
       return res.status(400).json({ error: "No file uploaded" });
@@ -83,7 +81,9 @@ const { data, error } = await supabase
     {
       journal_id: journalId,
       file_url: publicUrl.publicUrl,
-      user_id: userId
+      user_id: userId,
+        title,         
+        personal_note
     }
   ])
   .select();
