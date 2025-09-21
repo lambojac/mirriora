@@ -64,22 +64,30 @@ export const JournalController = {
     console.log("📌 File path to upload:", filePath);
 
     // Upload to Supabase storage
-    const { data: storageData, error: storageError } = 
-    await supabase.storage.from("scan").upload(filePath, file.buffer, { contentType: file.mimetype }); 
-    if (storageError) { return res.status(400).json({ error: storageError.message }); }
-     console.log("📌 Storage data:", storageData);
-    // Save metadata to scans table
-    const { data, error } = await supabase
-      .from("scans")
-      .insert([
-        {
-          journal_id: journalId,
-          file_url: storageData.path,
+    const { data: storageData, error: storageError } = await supabase.storage
+  .from("scan")
+  .upload(filePath, file.buffer, { contentType: file.mimetype });
 
-          user_id: userId
-        }
-      ])
-      .select();
+if (storageError) {
+  return res.status(400).json({ error: storageError.message });
+}
+
+// ✅ Build public URL
+const { data: publicUrl } = supabase.storage
+  .from("scan")
+  .getPublicUrl(storageData.path);
+
+const { data, error } = await supabase
+  .from("scans")
+  .insert([
+    {
+      journal_id: journalId,
+      file_url: publicUrl.publicUrl,
+      user_id: userId
+    }
+  ])
+  .select();
+
 
     console.log("📌 DB insert result:", data);
 
