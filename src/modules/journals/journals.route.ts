@@ -208,7 +208,46 @@ const router = Router();
  *                     type: string
  *                     format: date-time
  */
-
+/**
+ * @swagger
+ * /{id}/scans:
+ *   get:
+ *     summary: Get scans for a specific journal
+ *     description: Retrieve all scans associated with a specific journal for the authenticated user.
+ *     tags: [Journals]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The ID of the journal
+ *     responses:
+ *       200:
+ *         description: List of scans retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Scan'
+ *       400:
+ *         description: Bad request (error fetching scans)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                   example: "Invalid journal ID"
+ *       401:
+ *         description: Unauthorized (missing or invalid token)
+ *       500:
+ *         description: Internal server error
+ */
 
 const upload = multer({ storage: multer.memoryStorage() });
 router.post("/",protect, JournalController.create);
@@ -217,5 +256,6 @@ router.delete("/:id",protect, JournalController.remove);
 router.get("/", protect,JournalController.getAll);
 router.get("/:id",protect, JournalController.getOne);
 router.post("/:id/scans", protect,upload.single("scan"),JournalController.uploadScan)
+router.get("/:id/scans", protect,JournalController.getScans);
 
 export default router;

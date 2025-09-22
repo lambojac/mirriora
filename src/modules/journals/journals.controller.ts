@@ -96,7 +96,26 @@ const { data, error } = await supabase
     }
 
     res.json(data);
+  },
+
+//getscans
+async getScans(req: Request, res: Response) {
+  const userId = (req as any).user.id;
+  const { id: journalId } = req.params;
+
+  const { data, error } = await supabase
+    .from("scans")
+    .select("*")
+    .eq("journal_id", journalId)
+    .eq("user_id", userId)  
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    return res.status(400).json({ error: error.message });
   }
+  res.json(data);
+}
+
 
 
 };
