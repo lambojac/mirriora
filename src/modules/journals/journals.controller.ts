@@ -51,7 +51,7 @@ export const JournalController = {
     const userId = (req as any).user.id;
     const { id: journalId } = req.params;
     const file = req.file;
-    const { title, personal_note } = req.body;
+    const { title, personal_note,scan_result} = req.body;
   
 
     if (!file) {
@@ -83,7 +83,8 @@ const { data, error } = await supabase
       file_url: publicUrl.publicUrl,
       user_id: userId,
         title,         
-        personal_note
+        personal_note,
+        scan_result: scan_result ? JSON.parse(scan_result) : null,
     }
   ])
   .select();
