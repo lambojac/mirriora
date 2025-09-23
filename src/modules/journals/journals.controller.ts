@@ -108,7 +108,8 @@ async getScans(req: Request, res: Response) {
     .from("scans")
     .select("*")
     .eq("journal_id", journalId)
-    .eq("user_id", userId)  
+    .eq("user_id", userId) 
+    .select("*") 
     .order("created_at", { ascending: false });
 
   if (error) {
