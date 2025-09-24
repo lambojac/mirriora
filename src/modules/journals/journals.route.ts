@@ -248,6 +248,67 @@ const router = Router();
  *       500:
  *         description: Internal server error
  */
+/**
+ * @swagger
+ * /scans/{scanId}/personal-note:
+ *   put:
+ *     summary: Update the personal note of a scan
+ *     description: Allows the user to update only the `personal_note` field of a scan they own.
+ *     tags:
+ *       - Scans
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: scanId
+ *         required: true
+ *         description: The ID of the scan to update
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - personal_note
+ *             properties:
+ *               personal_note:
+ *                 type: string
+ *                 example: "This is my updated note about the scan"
+ *     responses:
+ *       200:
+ *         description: Personal note updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   id:
+ *                     type: string
+ *                   journal_id:
+ *                     type: string
+ *                   user_id:
+ *                     type: string
+ *                   file_url:
+ *                     type: string
+ *                   title:
+ *                     type: string
+ *                   personal_note:
+ *                     type: string
+ *                   scan_result:
+ *                     type: object
+ *                   created_at:
+ *                     type: string
+ *                     format: date-time
+ *       400:
+ *         description: Bad request (missing personal_note or invalid scanId)
+ *       401:
+ *         description: Unauthorized (user not logged in or doesn’t own scan)
+ */
 
 const upload = multer({ storage: multer.memoryStorage() });
 router.post("/",protect, JournalController.create);
@@ -257,5 +318,6 @@ router.get("/", protect,JournalController.getAll);
 router.get("/:id",protect, JournalController.getOne);
 router.post("/:id/scans", protect,upload.single("scan"),JournalController.uploadScan)
 router.get("/:id/scans", protect,JournalController.getScans);
+router.put("/scans/:scanId/personal-note",protect, JournalController.updatePersonalNote);
 
 export default router;

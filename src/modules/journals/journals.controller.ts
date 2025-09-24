@@ -116,10 +116,31 @@ async getScans(req: Request, res: Response) {
     return res.status(400).json({ error: error.message });
   }
   res.json(data);
+},
+
+
+async updatePersonalNote(req: Request, res: Response) {
+  const userId = (req as any).user.id;
+  const { scanId } = req.params;
+  const { personal_note } = req.body;
+
+  if (!personal_note) {
+    return res.status(400).json({ error: "personal_note is required" });
+  }
+
+  const { data, error } = await supabase
+    .from("scans")
+    .update({ personal_note })
+    .eq("id", scanId)     
+    .eq("user_id", userId) 
+    .select();
+
+  if (error) {
+    return res.status(400).json({ error: error.message });
+  }
+
+  res.json(data);
 }
-
-
-
 };
 
 
