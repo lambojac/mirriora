@@ -4,6 +4,7 @@ import swaggerSpec from "./swagger";
 import authRouter from "./modules/auth/auth.route";
 import journals from "./modules/journals/journals.route"
 import surveyRoutes from "./modules/survey/survey.route"
+import challenges from "./modules/challenge/challenge.route"
 import helmet from 'helmet';
 import cors from "cors"
 import rateLimit from 'express-rate-limit'; 
@@ -40,6 +41,7 @@ const server = http.createServer(app);
 app.use("/api/auth", authRouter);
 app.use("/api/survey", surveyRoutes);
 app.use("/api/journals",journals)
+app.use("/api/challenge",challenges)
 // Start Server
 const startServer = async () => {
   try {
