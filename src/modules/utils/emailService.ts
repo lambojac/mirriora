@@ -1,37 +1,37 @@
-import nodemailer from "nodemailer";
-import dotenv from "dotenv";
+// import nodemailer from "nodemailer";
+// import dotenv from "dotenv";
 
-dotenv.config();
+// dotenv.config();
 
-const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",  
-  port: 587,               
-  secure: false, 
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-});
+// const transporter = nodemailer.createTransport({
+//   host: "smtp.gmail.com",  
+//   port: 587,               
+//   secure: false, 
+//   auth: {
+//     user: process.env.EMAIL_USER,
+//     pass: process.env.EMAIL_PASS,
+//   },
+// });
 
-export const sendVerificationEmail = async (email: string, code: string) => {
-  await transporter.sendMail({
-    from: process.env.EMAIL_USER,
-    to: email,
-    subject: "Verify Your Email",
-    text: `Your OTP for email verification is: ${code}. It expires in 10 minutes.`,
-  });
-};
+// export const sendVerificationEmail = async (email: string, code: string) => {
+//   await transporter.sendMail({
+//     from: process.env.EMAIL_USER,
+//     to: email,
+//     subject: "Verify Your Email",
+//     text: `Your OTP for email verification is: ${code}. It expires in 10 minutes.`,
+//   });
+// };
 
 
 
-export const changePasswordEmail = async (email: string, code: string) => {
-  await transporter.sendMail({
-    from: process.env.EMAIL_USER,
-    to: email,
-    subject: "Change Password",
-    text: `Your OTP for password change is: ${code}. It expires in 10 minutes.`,
-  });
-}
+// export const changePasswordEmail = async (email: string, code: string) => {
+//   await transporter.sendMail({
+//     from: process.env.EMAIL_USER,
+//     to: email,
+//     subject: "Change Password",
+//     text: `Your OTP for password change is: ${code}. It expires in 10 minutes.`,
+//   });
+// }
 
 
 // import { Resend } from "resend";
@@ -68,3 +68,39 @@ export const changePasswordEmail = async (email: string, code: string) => {
 //     console.error("Error sending password change email:", error);
 //   }
 // };
+
+
+import sgMail from "@sendgrid/mail";
+import dotenv from "dotenv";
+
+dotenv.config();
+
+sgMail.setApiKey(process.env.SENDGRID_API_KEY!);
+
+export const sendVerificationEmail = async (email: string, code: string) => {
+  try {
+    await sgMail.send({
+      to: email,
+      from: process.env.FROM_EMAIL!, // must be verified in SendGrid
+      subject: "Verify Your Email",
+      text: `Your OTP for email verification is: ${code}. It expires in 10 minutes.`,
+    });
+    console.log(`Verification email sent to ${email}`);
+  } catch (error) {
+    console.error("Error sending verification email:", error);
+  }
+};
+
+export const changePasswordEmail = async (email: string, code: string) => {
+  try {
+    await sgMail.send({
+      to: email,
+      from: process.env.FROM_EMAIL!,
+      subject: "Change Password",
+      text: `Your OTP for password change is: ${code}. It expires in 10 minutes.`,
+    });
+    console.log(`Password change email sent to ${email}`);
+  } catch (error) {
+    console.error("Error sending password change email:", error);
+  }
+};
