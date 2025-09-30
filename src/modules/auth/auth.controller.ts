@@ -53,7 +53,7 @@ export const registerUser = asyncHandler(async (req: Request, res: Response): Pr
   }
 
   try {
-    const result = await userService.register(req.body);
+    const result = await userService.register(req.body, res);
     
     res.status(result.status).json({
       success: result.status === 201,
